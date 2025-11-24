@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  pdf-processor:
+    build: .
+    container_name: pdf-processor
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/uploads:/app/backend/uploads
+      - ./backend/data:/app/backend/data
+    environment:
+      - PDF_PROCESSOR_PORT=5000
+      - PDF_PROCESSOR_HOST=0.0.0.0
+    restart: always
