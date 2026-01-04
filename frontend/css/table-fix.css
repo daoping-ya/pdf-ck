@@ -1,0 +1,66 @@
+/* 表格和文本提取显示优化 */
+
+/* ------ 表格提取样式（深色主题）------ */
+.result-section table,
+#resultContent table {
+    background: #1a1f2e !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin: 15px 0 !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.result-section table td,
+.result-section table th,
+#resultContent table td,
+#resultContent table th {
+    padding: 12px 15px !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #e0e0e0 !important;
+    background: transparent !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+}
+
+.result-section table th,
+#resultContent table th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    text-align: left !important;
+}
+
+.result-section table tr:nth-child(even) td,
+#resultContent table tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.result-section table tr:hover td,
+#resultContent table tr:hover td {
+    background: rgba(102, 126, 234, 0.15) !important;
+}
+
+/* ------ 文本提取样式（白底黑字）------ */
+/* 文本提取结果使用白底黑字 */
+.result-section pre:not(:has(table)),
+#resultContent pre:not(:has(table)),
+.result-section div:not(:has(table)):not(:has(button)),
+#resultContent div:not(:has(table)):not(:has(button)) {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 20px !important;
+    border-radius: 8px !important;
+    border: 1px solid #ddd !important;
+    font-family: 'Microsoft YaHei', 'SimSun', sans-serif !important;
+    font-size: 14px !important;
+    line-height: 1.8 !important;
+}
+
+/* 代码块也使用白底黑字 */
+.result-section code,
+#resultContent code {
+    background: #f5f5f5 !important;
+    color: #000000 !important;
+    padding: 2px 6px !important;
+    border-radius: 3px !important;
+}

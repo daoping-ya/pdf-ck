@@ -1,0 +1,5 @@
+{
+    "enable_ocr": true,
+    "enable_layout_preservation": true,
+    "max_workers": 1
+}
