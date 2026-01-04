@@ -1,186 +1,136 @@
 #!/bin/bash
-# VPS Linux环境一键部署脚本
-# 适用于 Debian/Ubuntu 系统
+#####################################
+# PDF工具 - VPS首次部署脚本
+# 项目路径: /root/pdf-ck
+# 后端端口: 5000
+# 前端端口: 8080
+#####################################
 
-set -e  # 遇到错误立即退出
+set -e
 
 echo "========================================"
-echo "  PDF在线处理工具 - VPS部署脚本"
+echo "   PDF工具 - VPS首次部署"
 echo "========================================"
 echo ""
 
-# 颜色定义
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+RED='\033[0;31m'
+NC='\033[0m'
 
-# 检查是否为root用户
-if [ "$EUID" -eq 0 ]; then 
-    echo -e "${YELLOW}警告: 建议使用普通用户运行此脚本${NC}"
-    read -p "按Enter继续,或Ctrl+C取消..."
-fi
+# 配置变量
+APP_DIR="/root/pdf-ck"
+BACKEND_PORT=5000
+FRONTEND_PORT=8080
+PYTHON_VERSION="python3.10"
 
-echo -e "${GREEN}[1/6] 检查系统环境${NC}"
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}错误: Python3 未安装${NC}"
-    echo "请先安装: sudo apt install python3 python3-pip"
+# 检查root权限
+if [ "$EUID" -ne 0 ]; then 
+    echo -e "${RED}请使用root用户运行此脚本${NC}"
     exit 1
 fi
 
-PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-echo "Python版本: $PYTHON_VERSION"
+# 1. 更新系统
+echo -e "${YELLOW}[1/9] 更新系统包...${NC}"
+apt update && apt upgrade -y
 
-echo ""
-echo -e "${GREEN}[2/6] 安装系统依赖${NC}"
-echo "正在检查并安装必需的系统库..."
+# 2. 安装Python和工具
+echo -e "${YELLOW}[2/9] 安装Python 3.10和必要工具...${NC}"
+apt install -y python3.10 python3.10-venv python3-pip git supervisor
 
-# 检查是否有sudo权限
-if command -v sudo &> /dev/null; then
-    SUDO="sudo"
+# 3. 创建项目目录
+echo -e "${YELLOW}[3/9] 创建项目目录...${NC}"
+mkdir -p $APP_DIR
+cd $APP_DIR
+
+# 4. 克隆代码
+echo -e "${YELLOW}[4/9] 克隆GitHub仓库...${NC}"
+if [ -d ".git" ]; then
+    echo "代码仓库已存在，拉取最新代码..."
+    git pull origin main
 else
-    SUDO=""
+    echo "克隆代码仓库..."
+    git clone https://github.com/daoping-ya/pdf-ck.git .
 fi
 
-# 安装系统级依赖
-PACKAGES_TO_INSTALL=""
-
-# 检查libmagic1
-if ! dpkg -l | grep -q libmagic1; then
-    PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL libmagic1"
-fi
-
-# 检查poppler-utils
-if ! command -v pdftoppm &> /dev/null; then
-    PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL poppler-utils"
-fi
-
-# 检查OpenCV依赖
-if ! ldconfig -p | grep -q libGL.so.1; then
-    PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL libgl1"
-fi
-
-if ! ldconfig -p | grep -q libglib-2.0; then
-    PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL libglib2.0-0"
-fi
-
-# 检查Python venv
-if ! python3 -m venv --help &> /dev/null; then
-    PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL python${PYTHON_VERSION}-venv"
-fi
-
-if [ -n "$PACKAGES_TO_INSTALL" ]; then
-    echo -e "${YELLOW}需要安装: $PACKAGES_TO_INSTALL${NC}"
-    echo "运行命令: $SUDO apt update && $SUDO apt install -y $PACKAGES_TO_INSTALL"
-    
-    if [ -n "$SUDO" ]; then
-        $SUDO apt update
-        $SUDO apt install -y $PACKAGES_TO_INSTALL
-    else
-        echo -e "${RED}错误: 需要sudo权限安装系统依赖${NC}"
-        echo "请手动运行: sudo apt install -y $PACKAGES_TO_INSTALL"
-        exit 1
-    fi
-else
-    echo -e "${GREEN}✓ 所有系统依赖已满足${NC}"
-fi
-
-echo ""
-echo -e "${GREEN}[3/6] 创建Python虚拟环境${NC}"
-cd backend
-
+# 5. 创建虚拟环境
+echo -e "${YELLOW}[5/9] 创建Python虚拟环境...${NC}"
 if [ -d "venv" ]; then
-    echo -e "${YELLOW}虚拟环境已存在,跳过创建${NC}"
+    echo "虚拟环境已存在"
 else
-    python3 -m venv venv
-    echo -e "${GREEN}✓ 虚拟环境创建成功${NC}"
+    $PYTHON_VERSION -m venv venv
 fi
 
-echo ""
-echo -e "${GREEN}[4/6] 激活虚拟环境并安装Python依赖${NC}"
+# 激活虚拟环境并安装依赖
 source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
 
-# 升级pip
-pip install --upgrade pip > /dev/null
+# 确保pdf2docx版本正确
+pip install pdf2docx==0.5.6
 
-# 使用Linux专用的requirements文件
-if [ -f "requirements-linux.txt" ]; then
-    echo "使用Linux专用依赖文件: requirements-linux.txt"
-    pip install --no-cache-dir -r requirements-linux.txt
-else
-    echo -e "${YELLOW}未找到requirements-linux.txt,使用主requirements.txt并修正...${NC}"
-    # 创建临时文件
-    sed 's/python-magic-bin/python-magic/g' requirements.txt > requirements-temp.txt
-    pip install --no-cache-dir -r requirements-temp.txt
-    rm requirements-temp.txt
-fi
+# 6. 创建必要目录
+echo -e "${YELLOW}[6/9] 创建工作目录...${NC}"
+mkdir -p backend/uploads/processed
+mkdir -p uploads processed
 
-echo -e "${GREEN}✓ Python依赖安装完成${NC}"
+# 7. 配置Supervisor（后端）
+echo -e "${YELLOW}[7/9] 配置Supervisor管理后端服务...${NC}"
+cat > /etc/supervisor/conf.d/pdf-tool-backend.conf <<EOF
+[program:pdf-tool-backend]
+directory=/root/pdf-ck/backend
+command=/root/pdf-ck/venv/bin/python app.py
+user=root
+autostart=true
+autorestart=true
+redirect_stderr=true
+stdout_logfile=/var/log/pdf-tool-backend.log
+environment=PATH="/root/pdf-ck/venv/bin"
+EOF
 
-echo ""
-echo -e "${GREEN}[5/6] 验证关键库${NC}"
-python3 << 'PYEOF'
-import sys
+# 8. 配置Supervisor（前端）
+echo -e "${YELLOW}[8/9] 配置Supervisor管理前端服务...${NC}"
+cat > /etc/supervisor/conf.d/pdf-tool-frontend.conf <<EOF
+[program:pdf-tool-frontend]
+directory=/root/pdf-ck/frontend
+command=/root/pdf-ck/venv/bin/python -m http.server $FRONTEND_PORT
+user=root
+autostart=true
+autorestart=true
+redirect_stderr=true
+stdout_logfile=/var/log/pdf-tool-frontend.log
+environment=PATH="/root/pdf-ck/venv/bin"
+EOF
 
-errors = []
+# 9. 启动服务
+echo -e "${YELLOW}[9/9] 启动服务...${NC}"
+supervisorctl reread
+supervisorctl update
+supervisorctl restart pdf-tool-backend
+supervisorctl restart pdf-tool-frontend
 
-try:
-    import flask
-    print(f"✓ Flask {flask.__version__}")
-except ImportError:
-    errors.append("Flask")
-
-try:
-    import fitz
-    print(f"✓ PyMuPDF (fitz) {fitz.version[0]}")
-except ImportError:
-    errors.append("PyMuPDF")
-
-try:
-    from pdf2docx import Converter
-    import pdf2docx
-    print(f"✓ pdf2docx {pdf2docx.__version__}")
-except ImportError:
-    errors.append("pdf2docx")
-
-try:
-    import magic
-    print("✓ python-magic")
-except ImportError:
-    errors.append("python-magic")
-
-if errors:
-    print(f"\n❌ 以下库导入失败: {', '.join(errors)}")
-    sys.exit(1)
-else:
-    print("\n✓ 所有关键库验证通过")
-PYEOF
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}库验证失败,请检查错误信息${NC}"
-    exit 1
-fi
-
-echo ""
-echo -e "${GREEN}[6/6] 配置完成${NC}"
-
-# 创建必要的目录
-mkdir -p uploads/temp uploads/processed data
+# 等待服务启动
+sleep 3
 
 echo ""
 echo -e "${GREEN}========================================"
-echo "  部署成功!"
-echo "========================================${NC}"
+echo -e "   ✓ 部署完成！"
+echo -e "========================================${NC}"
 echo ""
-echo "启动命令:"
-echo -e "  ${YELLOW}cd backend && source venv/bin/activate && python app.py${NC}"
+echo "服务信息:"
+echo "  项目目录: $APP_DIR"
+echo "  后端端口: $BACKEND_PORT"
+echo "  前端端口: $FRONTEND_PORT"
+echo "  Python版本: $PYTHON_VERSION"
 echo ""
-echo "或使用nohup后台运行:"
-echo -e "  ${YELLOW}cd backend && nohup venv/bin/python app.py > app.log 2>&1 &${NC}"
+echo "访问地址:"
+echo "  前端: http://your-server-ip:$FRONTEND_PORT"
+echo "  后端API: http://your-server-ip:$BACKEND_PORT"
 echo ""
-echo "查看运行日志:"
-echo -e "  ${YELLOW}tail -f backend/app.log${NC}"
+echo "常用命令:"
+echo "  查看后端日志: tail -f /var/log/pdf-tool-backend.log"
+echo "  查看前端日志: tail -f /var/log/pdf-tool-frontend.log"
+echo "  查看服务状态: supervisorctl status"
+echo "  重启后端: supervisorctl restart pdf-tool-backend"
+echo "  重启前端: supervisorctl restart pdf-tool-frontend"
 echo ""
-echo "默认访问地址: http://your-vps-ip:5000"
-echo ""
-echo -e "${YELLOW}提示: 建议使用Nginx反向代理并配置域名访问${NC}"
